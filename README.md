@@ -2,9 +2,11 @@
 
 ## General Considerations
 
-1. The frontend will run by default on port 5173 and the backend API will run on port 3000. Make sure you have these ports free or if you wish you can change these ports in the respective files.
-2. The database used was MySQL.
-3. The path to the API documentation (made with Swagger) is **"http://localhost:3000/documentation ”**.
+1. The frontend was made with React and the backend with NestJs.
+2. The frontend will run by default on port 5173 and the backend API will run on port 3000. Make sure you have these ports free or if you wish you can change these ports in the respective files.
+3. The database used was MySQL.
+4. The path to the API documentation (made with Swagger) is **"http://localhost:3000/documentation ”**.
+5. The MySQL file is shared with the database and tables creation script, although it is not necessary to execute this file for the project to work. It is only to have a better clarity of the design of the tables used. 
 
 Before installing this project, you need to install the following dependencies:
 
