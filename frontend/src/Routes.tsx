@@ -9,14 +9,6 @@ const Routes = () => {
       path: "/",
       element: <Home />,
     },
-    // {
-    //   path: "/registration",
-    //   element: <Registration />,
-    // },
-    // {
-    //   path: "/create",
-    //   element: <CreateTask />,
-    // },
   ]);
 };
 

@@ -1,4 +1,3 @@
-import "./styles/index.css";
 import Routes from "./Routes.tsx";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

@@ -1,0 +1,57 @@
+.elevator-panel {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    width: 300px;
+  }
+  
+  .elevator-panel h3 {
+    text-align: center;
+    color: #343a40;
+    margin-bottom: 20px;
+  }
+  
+  .control-group {
+    margin-bottom: 20px;
+  }
+  
+  .control-group h4 {
+    color: #495057;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  
+  .button-group {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  
+  .button-group button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    background-color: #6c757d;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    flex: 1;
+  }
+  
+  .button-group button:hover:not(:disabled) {
+    background-color: #5a6268;
+  }
+  
+  .button-group button:disabled {
+    background-color: #d6d8db;
+    cursor: not-allowed;
+  }
+  
+  .button-group button.active {
+    background-color: #28a745;
+  }
+  
+  .button-group button.active:hover {
+    background-color: #218838;
+  }
