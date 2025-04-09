@@ -1,9 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ElevatorService } from './elevator/elevator.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+    // Inicializar el elevador
+    const elevatorService = app.get(ElevatorService);
+    await elevatorService.initializeElevator();
 
   // Configurar CORS
   app.enableCors({

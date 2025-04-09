@@ -26,10 +26,29 @@ export class ElevatorService {
     private logRepository: Repository<ElevatorLog>,
   ) {}
 
-
-  private async getCurrentStatus(): Promise<ElevatorStatus> {
+    // Inicializa el estado del elevador si no existe
+    async initializeElevator(): Promise<void> {
+      const existingStatus = await this.statusRepository.findOne({ 
+        where: { id: this.STATUS_ID } 
+      });
+  
+      if (!existingStatus) {
+        this.logger.log('Initializing elevator status...');
+        const newStatus = this.statusRepository.create({
+          id: this.STATUS_ID,
+          current_floor: 0,
+          is_moving: false,
+          doors_open: false,
+          direction: ELEVATOR_DIRECTIONS.IDLE
+        });
+        await this.statusRepository.save(newStatus);
+        this.logger.log('Elevator status initialized');
+      }
+    }
+  
+    // Obtiene el estado actual del elevador
+    private async getCurrentStatus(): Promise<ElevatorStatus> {
     let status = await this.statusRepository.findOne({ where: { id: this.STATUS_ID } });
-    
     if (!status) {
       this.logger.log('Initializing new elevator status');
       status = this.statusRepository.create({
@@ -41,13 +60,10 @@ export class ElevatorService {
       });
       await this.statusRepository.save(status);
     }
-    
     return status;
   }
 
-  /**
-   * Obtiene el estado completo del ascensor para la respuesta API
-   */
+  // Obtiene el estado completo del ascensor 
   async getStatus(): Promise<ElevatorResponseDto> {
     const status = await this.getCurrentStatus();
     const pendingQueue = await this.queueRepository.find({ 
@@ -64,9 +80,7 @@ export class ElevatorService {
     };
   }
 
-  /**
-   * Llama al ascensor a un piso específico
-   */
+  // Llama al ascensor a un piso específico
   async callElevator(callDto: CallElevatorDto): Promise<ElevatorResponseDto> {
     const { floor } = callDto;
     const status = await this.getCurrentStatus();
@@ -102,9 +116,7 @@ export class ElevatorService {
     return this.getStatus();
   }
 
-  /**
-   * Controla las puertas del ascensor
-   */
+  // Controla las puertas del ascensor
   async controlDoors(action: 'open' | 'close'): Promise<ElevatorResponseDto> {
     const status = await this.getCurrentStatus();
 
@@ -132,9 +144,7 @@ export class ElevatorService {
     return this.getStatus();
   }
 
-  /**
-   * Controla el movimiento del ascensor
-   */
+  // Controla el movimiento del ascensor
   async controlMovement(action: 'start' | 'stop'): Promise<ElevatorResponseDto> {
     const status = await this.getCurrentStatus();
 
@@ -165,9 +175,7 @@ export class ElevatorService {
     return this.getStatus();
   }
 
-  /**
-   * Procesa la cola de solicitudes de pisos
-   */
+  // Procesa la cola de solicitudes de pisos
   private async processQueue(): Promise<void> {
     const status = await this.getCurrentStatus();
     if (status.is_moving || status.doors_open) return;
@@ -223,9 +231,7 @@ export class ElevatorService {
     await this.processQueue();
   }
 
-  /**
-   * Maneja la llegada del ascensor a un piso
-   */
+  // Maneja la llegada del ascensor a un piso
   private async handleArrival(floor: number): Promise<void> {
     // Marcar todas las solicitudes para este piso como completadas
     await this.queueRepository.update(
