@@ -1,5 +1,8 @@
 import * as dotenv from 'dotenv';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { ElevatorStatus } from './elevator/elevator-status.entity';
+import { ElevatorQueue } from './elevator/elevator-queue.entity';
+import { ElevatorLog } from './elevator/elevator-log.entity';
 
 dotenv.config();
 
@@ -10,8 +13,13 @@ const dataBaseConfig: TypeOrmModuleOptions = {
   username: process.env.DB_USER || 'root',
   password: process.env.DB_PASS || 'root',
   database: process.env.DB_NAME || 'we_are_dev_test',
-  entities: [],
+  entities: [
+    ElevatorStatus,
+    ElevatorQueue,
+    ElevatorLog
+  ],
   synchronize: true,
+  logging: process.env.NODE_ENV === 'development',
 };
 
 export default dataBaseConfig;

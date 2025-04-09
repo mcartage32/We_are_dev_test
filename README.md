@@ -4,6 +4,7 @@
 
 1. The frontend will run by default on port 5173 and the backend API will run on port 3000. Make sure you have these ports free or if you wish you can change these ports in the respective files.
 2. The database used was MySQL.
+3. The path to the API documentation (made with Swagger) is **"http://localhost:3000/documentation ”**.
 
 Before installing this project, you need to install the following dependencies:
 
