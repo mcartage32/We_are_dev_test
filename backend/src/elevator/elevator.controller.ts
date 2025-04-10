@@ -11,14 +11,11 @@ import {
   import { ElevatorResponseDto } from './elevator.dto';
   
   @Controller('elevator')
-  export class ElevatorController {
-    private readonly logger = new Logger(ElevatorController.name);
-  
+  export class ElevatorController {  
     constructor(private readonly elevatorService: ElevatorService) {}
   
     @Get('status')
     async getStatus(): Promise<ElevatorResponseDto> {
-      this.logger.log('Fetching elevator status');
       return this.elevatorService.getStatus();
     }
   
@@ -26,7 +23,6 @@ import {
     async callElevator(
       @Body() callDto: CallElevatorDto
     ): Promise<ElevatorResponseDto> {
-      this.logger.log(`Calling elevator to floor ${callDto.floor}`);
       return this.elevatorService.callElevator(callDto);
     }
   
@@ -34,7 +30,6 @@ import {
     async controlDoors(
       @Param('action') action: 'open' | 'close'
     ): Promise<ElevatorResponseDto> {
-      this.logger.log(`Controlling doors: ${action}`);
       if (action !== 'open' && action !== 'close') {
         throw new Error('Invalid door action');
       }
@@ -45,7 +40,6 @@ import {
     async controlMovement(
       @Param('action') action: 'start' | 'stop'
     ): Promise<ElevatorResponseDto> {
-      this.logger.log(`Controlling movement: ${action}`);
       if (action !== 'start' && action !== 'stop') {
         throw new Error('Invalid movement action');
       }

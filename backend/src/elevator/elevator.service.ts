@@ -14,7 +14,6 @@ import {
 
 @Injectable()
 export class ElevatorService {
-  private readonly logger = new Logger(ElevatorService.name);
   private readonly STATUS_ID = 1; // ID fijo para el estado del ascensor
 
   constructor(
@@ -33,7 +32,6 @@ export class ElevatorService {
       });
   
       if (!existingStatus) {
-        this.logger.log('Initializing elevator status...');
         const newStatus = this.statusRepository.create({
           id: this.STATUS_ID,
           current_floor: 0,
@@ -42,43 +40,133 @@ export class ElevatorService {
           direction: ELEVATOR_DIRECTIONS.IDLE
         });
         await this.statusRepository.save(newStatus);
-        this.logger.log('Elevator status initialized');
       }
     }
-  
-    // Obtiene el estado actual del elevador
-    private async getCurrentStatus(): Promise<ElevatorStatus> {
-    let status = await this.statusRepository.findOne({ where: { id: this.STATUS_ID } });
-    if (!status) {
-      this.logger.log('Initializing new elevator status');
-      status = this.statusRepository.create({
-        id: this.STATUS_ID,
-        current_floor: 0,
-        is_moving: false,
-        doors_open: false,
-        direction: ELEVATOR_DIRECTIONS.IDLE
-      });
-      await this.statusRepository.save(status);
-    }
-    return status;
-  }
 
-  // Obtiene el estado completo del ascensor 
-  async getStatus(): Promise<ElevatorResponseDto> {
+      // Obtiene el estado actual del elevador
+      private async getCurrentStatus(): Promise<ElevatorStatus> {
+        let status = await this.statusRepository.findOne({ where: { id: this.STATUS_ID } });
+        if (!status) {
+          status = this.statusRepository.create({
+            id: this.STATUS_ID,
+            current_floor: 0,
+            is_moving: false,
+            doors_open: false,
+            direction: ELEVATOR_DIRECTIONS.IDLE
+          });
+          await this.statusRepository.save(status);
+        }
+        return status;
+      }
+    
+      // Obtiene el estado completo del ascensor 
+      async getStatus(): Promise<ElevatorResponseDto> {
+        const status = await this.getCurrentStatus();
+        const pendingQueue = await this.queueRepository.find({ 
+          where: { status: QUEUE_STATUS.PENDING },
+          order: { request_time: 'ASC' }
+        });
+    
+        return {
+          currentFloor: status.current_floor,
+          isMoving: status.is_moving,
+          doorsOpen: status.doors_open,
+          direction: status.direction,
+          queue: pendingQueue.map(item => item.floor)
+        };
+      }
+
+  // Procesa la cola de solicitudes de pisos
+  private async processQueue(): Promise<void> {
     const status = await this.getCurrentStatus();
-    const pendingQueue = await this.queueRepository.find({ 
+    if (status.is_moving || status.doors_open) return;
+
+    const nextRequest = await this.queueRepository.findOne({
       where: { status: QUEUE_STATUS.PENDING },
       order: { request_time: 'ASC' }
     });
 
-    return {
-      currentFloor: status.current_floor,
-      isMoving: status.is_moving,
-      doorsOpen: status.doors_open,
-      direction: status.direction,
-      queue: pendingQueue.map(item => item.floor)
-    };
+    if (!nextRequest) return;
+    // Pasamos todos los estados de la cola de pendiente a en progrso
+    await this.queueRepository.update(nextRequest.id, { 
+      status: QUEUE_STATUS.IN_PROGRESS 
+    });
+   // Definimos la direccion
+    const direction = nextRequest.floor > status.current_floor 
+      ? ELEVATOR_DIRECTIONS.UP 
+      : ELEVATOR_DIRECTIONS.DOWN;
+   // Actualizamos el elevador
+    await this.statusRepository.update(this.STATUS_ID, { 
+      direction,
+      is_moving: true 
+    });
+
+    // Simular movimiento entre pisos
+    let currentFloor = status.current_floor;
+    while (currentFloor !== nextRequest.floor) {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 segundo por piso
+      //Se le suma o resta 1 al piso actual si el elevador sube o baja
+      currentFloor += direction === ELEVATOR_DIRECTIONS.UP ? 1 : -1;
+      await this.statusRepository.update(this.STATUS_ID, { 
+        current_floor: currentFloor 
+      });
+
+      // Verificar si hay solicitudes para el piso actual
+      const intermediateRequest = await this.queueRepository.findOne({
+        where: { 
+          floor: currentFloor, 
+          status: QUEUE_STATUS.PENDING 
+        }
+      });
+
+      if (intermediateRequest) {
+        await this.handleArrival(currentFloor);
+        break;
+      }
+    }
+
+    if (currentFloor === nextRequest.floor) {
+      await this.handleArrival(currentFloor);
+    }
+
+    // Recursividad - Verificar si hay más solicitudes
+    await this.processQueue();
   }
+  
+  // Maneja la llegada del ascensor a un piso
+  // Se maneja solo la direccion y la puertas
+  private async handleArrival(floor: number): Promise<void> {
+    // Marcar todas las solicitudes para este piso como completadas
+    await this.queueRepository.update(
+      { floor, status: QUEUE_STATUS.PENDING },
+      { 
+        status: QUEUE_STATUS.COMPLETED,
+        completed_time: new Date() 
+      }
+    );
+    // Deja el elevador quieto en el piso y con las puertas abierta en el piso solicitado
+    await this.statusRepository.update(this.STATUS_ID, { 
+      is_moving: false,
+      doors_open: true,
+      direction: ELEVATOR_DIRECTIONS.IDLE
+    });
+
+    await this.logRepository.save({
+      event_type: EVENT_TYPES.ARRIVAL,
+      floor,
+      details: `Elevator arrived at floor ${floor}`
+    });
+
+    // Cerrar puertas después de 2 segundos automáticamente
+    setTimeout(async () => {
+      const currentStatus = await this.getCurrentStatus();
+      if (currentStatus.doors_open && !currentStatus.is_moving) {
+        await this.controlDoors('close');
+      }
+    }, 2000);
+  }
+
+
 
   // Llama al ascensor a un piso específico
   async callElevator(callDto: CallElevatorDto): Promise<ElevatorResponseDto> {
@@ -152,6 +240,7 @@ export class ElevatorService {
       if (status.doors_open) {
         throw new Error('Cannot start elevator with doors open');
       }
+      //  Lo ponemos en movimiento y registramos en log
       await this.statusRepository.update(this.STATUS_ID, { 
         is_moving: true 
       });
@@ -159,6 +248,7 @@ export class ElevatorService {
         event_type: EVENT_TYPES.START,
         details: 'Elevator started moving'
       });
+      //Procesamos la cola de peticiones
       await this.processQueue();
     } else if (action === 'stop') {
       await this.statusRepository.update(this.STATUS_ID, { 
@@ -175,91 +265,6 @@ export class ElevatorService {
     return this.getStatus();
   }
 
-  // Procesa la cola de solicitudes de pisos
-  private async processQueue(): Promise<void> {
-    const status = await this.getCurrentStatus();
-    if (status.is_moving || status.doors_open) return;
 
-    const nextRequest = await this.queueRepository.findOne({
-      where: { status: QUEUE_STATUS.PENDING },
-      order: { request_time: 'ASC' }
-    });
 
-    if (!nextRequest) return;
-
-    await this.queueRepository.update(nextRequest.id, { 
-      status: QUEUE_STATUS.IN_PROGRESS 
-    });
-
-    const direction = nextRequest.floor > status.current_floor 
-      ? ELEVATOR_DIRECTIONS.UP 
-      : ELEVATOR_DIRECTIONS.DOWN;
-
-    await this.statusRepository.update(this.STATUS_ID, { 
-      direction,
-      is_moving: true 
-    });
-
-    // Simular movimiento entre pisos
-    let currentFloor = status.current_floor;
-    while (currentFloor !== nextRequest.floor) {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 segundo por piso
-      currentFloor += direction === ELEVATOR_DIRECTIONS.UP ? 1 : -1;
-      await this.statusRepository.update(this.STATUS_ID, { 
-        current_floor: currentFloor 
-      });
-
-      // Verificar si hay solicitudes para el piso actual
-      const intermediateRequest = await this.queueRepository.findOne({
-        where: { 
-          floor: currentFloor, 
-          status: QUEUE_STATUS.PENDING 
-        }
-      });
-
-      if (intermediateRequest) {
-        await this.handleArrival(currentFloor);
-        break;
-      }
-    }
-
-    if (currentFloor === nextRequest.floor) {
-      await this.handleArrival(currentFloor);
-    }
-
-    // Verificar si hay más solicitudes
-    await this.processQueue();
-  }
-
-  // Maneja la llegada del ascensor a un piso
-  private async handleArrival(floor: number): Promise<void> {
-    // Marcar todas las solicitudes para este piso como completadas
-    await this.queueRepository.update(
-      { floor, status: QUEUE_STATUS.PENDING },
-      { 
-        status: QUEUE_STATUS.COMPLETED,
-        completed_time: new Date() 
-      }
-    );
-
-    await this.statusRepository.update(this.STATUS_ID, { 
-      is_moving: false,
-      doors_open: true,
-      direction: ELEVATOR_DIRECTIONS.IDLE
-    });
-
-    await this.logRepository.save({
-      event_type: EVENT_TYPES.ARRIVAL,
-      floor,
-      details: `Elevator arrived at floor ${floor}`
-    });
-
-    // Cerrar puertas después de 2 segundos automáticamente
-    setTimeout(async () => {
-      const currentStatus = await this.getCurrentStatus();
-      if (currentStatus.doors_open && !currentStatus.is_moving) {
-        await this.controlDoors('close');
-      }
-    }, 2000);
-  }
 }
